@@ -6,15 +6,14 @@ Fitness / MiHealth** cloud. Data is read at the account level — whatever your
 Xiaomi devices (bands, scales, …) sync to Mi Fitness shows up, regardless of
 which device produced it.
 
-> ℹ️ **This is a fork** of [batareya16/MiFitnessHass](https://github.com/batareya16/MiFitnessHass)
-> with changes that are submitted upstream but not merged yet:
-> stress sensor ([#4](https://github.com/batareya16/MiFitnessHass/pull/4)),
-> long-term statistics for heart rate, SpO₂ and steps
-> ([#5](https://github.com/batareya16/MiFitnessHass/pull/5)) and correct sleep
-> duration for interrupted nights
-> ([#6](https://github.com/batareya16/MiFitnessHass/pull/6)).
-> Once they are merged, switch back to the original repository. Problems with
-> this fork: [issues here](https://github.com/WG73/MiFitnessHass/issues).
+> ℹ️ **This is a combined fork** of
+> [batareya16/MiFitnessHass](https://github.com/batareya16/MiFitnessHass). It
+> merges the forks by [WG73](https://github.com/WG73/MiFitnessHass) (stress
+> sensor, long-term statistics, sleep fixes) and
+> [Reasno](https://github.com/Reasno/MiFitnessHass) (stable 2FA device, SMS or
+> email codes, passToken rotation, sleep sessions) and adds further fixes — see
+> [CHANGES.md](CHANGES.md). Problems with this fork:
+> [issues here](https://github.com/p1ne/MiFitnessHass/issues).
 
 > ⚠️ **Disclaimer — educational / unofficial.**
 > Not affiliated with, authorized, or endorsed by Xiaomi. It talks to a private
@@ -40,7 +39,7 @@ which device produced it.
 ## Installation (HACS)
 
 1. HACS → **⋮** → **Custom repositories**.
-2. Add `https://github.com/WG73/MiFitnessHass` as category **Integration**.
+2. Add `https://github.com/p1ne/MiFitnessHass` as category **Integration**.
 3. Install **Mi Fitness**, then restart Home Assistant.
 4. **Settings → Devices & Services → Add Integration → Mi Fitness**.
 
@@ -53,12 +52,21 @@ and restart.
 
 ## Setup
 
-Two authentication paths in the config flow:
+Choose the server region (leave **auto** if unsure) and one of two
+authentication paths. After signing in, the integration checks that the data
+API really answers and picks the region that has your data (the selected one is
+tried first).
 
 ### A. Username + password (recommended)
 Enter your Xiaomi account email/phone and password. If 2FA is enabled, a code
-is emailed to you and entered in the next step. The integration stores a
-`passToken` so it can refresh expired session tokens silently afterwards.
+is sent by SMS or email and entered in the next step; the login device is
+remembered, so 2FA is not asked again on every login. The integration stores a
+`passToken` and refreshes expired session tokens silently.
+
+The password itself is **not stored** unless you tick *Remember password*. It
+is only needed if the `passToken` expires; without it you will be asked to sign
+in again in that case. A stored password can be removed later via
+**Reconfigure**.
 
 ### B. Manual token entry
 Advanced fallback for accounts where automated login fails. Supply credentials
@@ -70,6 +78,12 @@ obtained from your own Mi Fitness account session:
 
 Paste them into the form. `passToken` is optional but strongly recommended (it
 enables silent refresh).
+
+### Reconfigure, diagnostics
+- **Settings → Devices & Services → Mi Fitness → ⋮ → Reconfigure** changes the
+  region or forgets a stored password.
+- **Download diagnostics** produces a file with all tokens, IDs and the account
+  name redacted — attach that to issues instead of raw logs.
 
 ---
 

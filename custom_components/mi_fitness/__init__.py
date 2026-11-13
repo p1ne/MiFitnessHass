@@ -13,10 +13,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.loader import async_get_integration
 
-from .api import MiFitnessApiError, MiFitnessClient
+from .api import MiFitnessApiError, MiFitnessClient, new_api_device_suffix
 from .const import (
+    CONF_API_DEVICE_SUFFIX,
     CONF_C_USER_ID,
-    CONF_PHONE_ID,
     CONF_REGION,
     CONF_SERVICE_TOKEN,
     CONF_SSECURITY,
@@ -25,6 +25,8 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import MiFitnessCoordinator
+
+type MiFitnessConfigEntry = ConfigEntry[MiFitnessCoordinator]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,19 +65,24 @@ async def _async_register_cards(hass: HomeAssistant) -> None:
     _LOGGER.debug("Mi Fitness: registered %d Lovelace cards (v%s)", len(_CARDS), ver)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: MiFitnessConfigEntry) -> bool:
     """Set up Mi Fitness from a config entry."""
     await _async_register_cards(hass)
 
-    data = entry.data
+    # Older entries have no stored client fingerprint: create it once.
+    if not entry.data.get(CONF_API_DEVICE_SUFFIX):
+        hass.config_entries.async_update_entry(
+            entry, data={**entry.data, CONF_API_DEVICE_SUFFIX: new_api_device_suffix()}
+        )
 
+    data = entry.data
     client = MiFitnessClient(
         user_id=data[CONF_USER_ID],
         c_user_id=data[CONF_C_USER_ID],
         ssecurity=data[CONF_SSECURITY],
         service_token=data[CONF_SERVICE_TOKEN],
         region=data.get(CONF_REGION, DEFAULT_REGION),
-        phone_id=data.get(CONF_PHONE_ID, ""),
+        device_suffix=data[CONF_API_DEVICE_SUFFIX],
     )
 
     coordinator = MiFitnessCoordinator(hass, client, entry)
@@ -86,16 +93,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await coordinator.async_config_entry_first_refresh()
     except MiFitnessApiError as exc:
+        await hass.async_add_executor_job(client.close)
         raise ConfigEntryNotReady(f"API not available: {exc}") from exc
+    except Exception:
+        await hass.async_add_executor_job(client.close)
+        raise
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
-
+    entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: MiFitnessConfigEntry) -> bool:
     """Unload a config entry."""
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
+        await hass.async_add_executor_job(entry.runtime_data.client.close)
     return unload_ok

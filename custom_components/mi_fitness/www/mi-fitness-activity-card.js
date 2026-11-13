@@ -42,8 +42,31 @@ class MiFitnessActivityCard extends HTMLElement {
   _state(name)      { return this._hass.states[this._eid(name)]?.state ?? null; }
   _attr(name, attr) { return this._hass.states[this._eid(name)]?.attributes?.[attr] ?? null; }
 
+  // Dates in the sensor data are calendar days in the Home Assistant server
+  // time zone, so "today" and day keys must be computed there too — not in the
+  // browser's zone (a phone abroad would otherwise miss today's data).
+  _srvTz() { return this._hass?.config?.time_zone || undefined; }
+  // Clock times follow the user's profile setting (local browser vs server).
+  _dispTz() { return this._hass?.locale?.time_zone === "server" ? this._srvTz() : undefined; }
+
   _dateStr(d) {
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: this._srvTz(), year: "numeric", month: "2-digit", day: "2-digit",
+      }).format(d);
+    } catch (e) {
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    }
+  }
+
+  // Day of week (0 = Monday) in the server time zone
+  _dow(d) {
+    try {
+      const wd = new Intl.DateTimeFormat("en-US", { timeZone: this._srvTz(), weekday: "short" }).format(d);
+      return ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].indexOf(wd);
+    } catch (e) {
+      return (d.getDay() + 6) % 7;
+    }
   }
 
   _getTier(steps) {

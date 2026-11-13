@@ -1,0 +1,181 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mi Fitness — настройка",
+        "data": {
+          "auth_method": "Способ входа",
+          "region": "Регион сервера («auto» — перебрать все)"
+        }
+      },
+      "password": {
+        "title": "Mi Fitness — вход в Xiaomi",
+        "description": "Введите данные аккаунта Xiaomi. Если включена двухфакторная защита, код придёт по SMS или на почту.\n\nПароль не сохраняется, если не отметить «Запомнить пароль»: вместо него используется долгоживущий токен сессии. Без сохранённого пароля, когда токен истечёт, пароль придётся ввести снова.",
+        "data": {
+          "username": "Почта или телефон аккаунта Xiaomi",
+          "password": "Пароль",
+          "save_password": "Запомнить пароль (нужен, только если истечёт токен сессии)"
+        }
+      },
+      "captcha": {
+        "title": "Mi Fitness — нужна капча",
+        "description": "Введите текст с картинки:\n\n![Captcha]({captcha_url})",
+        "data": {
+          "captcha_code": "Текст с картинки"
+        }
+      },
+      "approval": {
+        "title": "Mi Fitness — код подтверждения",
+        "description": "Xiaomi отправила код подтверждения по SMS или на почту.\n\nВведите его ниже — интеграция отправит его сама.",
+        "data": {
+          "email_code": "Код подтверждения"
+        }
+      },
+      "tokens": {
+        "title": "Mi Fitness — ручной ввод токенов",
+        "description": "Для опытных: данные из вашей собственной сессии Mi Fitness.\n\n• ssecurity, userId, cUserId — из ответа serviceLoginAuth2\n• passToken — из заголовка Set-Cookie ответа serviceLoginAuth2\n• serviceToken — из заголовка Set-Cookie ответа STS\n\npassToken позволяет обновлять токены без двухфакторной проверки. Очень желателен.",
+        "data": {
+          "user_id": "userId",
+          "c_user_id": "cUserId",
+          "ssecurity": "ssecurity",
+          "service_token": "serviceToken",
+          "pass_token": "passToken (желательно)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Mi Fitness — повторный вход",
+        "description": "Сессию не удалось продлить автоматически. Войдите снова (или введите новые токены).",
+        "data": {
+          "username": "Почта или телефон аккаунта Xiaomi",
+          "password": "Пароль",
+          "save_password": "Запомнить пароль (нужен, только если истечёт токен сессии)",
+          "ssecurity": "ssecurity",
+          "service_token": "serviceToken",
+          "pass_token": "passToken (желательно)"
+        }
+      },
+      "reauth_captcha": {
+        "title": "Mi Fitness — нужна капча",
+        "description": "Введите текст с картинки:\n\n![Captcha]({captcha_url})",
+        "data": {
+          "captcha_code": "Текст с картинки"
+        }
+      },
+      "reauth_approval": {
+        "title": "Mi Fitness — код подтверждения",
+        "description": "Xiaomi отправила код подтверждения по SMS или на почту.\n\nВведите его ниже — интеграция отправит его сама.",
+        "data": {
+          "email_code": "Код подтверждения"
+        }
+      },
+      "reconfigure": {
+        "title": "Mi Fitness — настройки",
+        "description": "Перед сохранением регион проверяется запросом к API данных.",
+        "data": {
+          "region": "Регион сервера («auto» — перебрать все)",
+          "forget_password": "Удалить сохранённый пароль"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Неверные данные или истёкшие токены.",
+      "cannot_connect": "Не удаётся подключиться к API Mi Fitness. Проверьте интернет.",
+      "no_data_region": "Ни один регион не принял эти данные.",
+      "login_failed": "Вход не удался. Проверьте данные и попробуйте снова.",
+      "captcha_invalid": "Неверная капча. Попробуйте снова.",
+      "unknown": "Непредвиденная ошибка — смотрите журнал Home Assistant.",
+      "approval_not_detected": "Неверный или просроченный код. Попробуйте снова.",
+      "otp_send_failed": "Xiaomi не приняла запрос на отправку кода. Попробуйте позже."
+    },
+    "abort": {
+      "already_configured": "Этот аккаунт Mi Fitness уже добавлен.",
+      "reauth_successful": "Повторный вход выполнен.",
+      "reconfigure_successful": "Настройки обновлены.",
+      "wrong_account": "Вы вошли в другой аккаунт Xiaomi, не в тот, что настроен.",
+      "cannot_connect": "Вход выполнен, но API данных Mi Fitness недоступен. Попробуйте позже.",
+      "no_data_region": "Вход выполнен, но ни один регион Mi Fitness не принял сессию. Убедитесь, что в аккаунте есть данные Mi Fitness."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "steps_today": {
+        "name": "Шаги за сегодня"
+      },
+      "distance_today": {
+        "name": "Расстояние за сегодня"
+      },
+      "calories_today": {
+        "name": "Калории за сегодня"
+      },
+      "heart_rate": {
+        "name": "Пульс"
+      },
+      "resting_heart_rate": {
+        "name": "Пульс в покое"
+      },
+      "heart_rate_avg_today": {
+        "name": "Средний пульс за сегодня"
+      },
+      "sleep_duration": {
+        "name": "Длительность сна"
+      },
+      "sleep_deep": {
+        "name": "Глубокий сон"
+      },
+      "sleep_light": {
+        "name": "Лёгкий сон"
+      },
+      "sleep_rem": {
+        "name": "Фаза REM"
+      },
+      "sleep_avg_hr": {
+        "name": "Средний пульс во сне"
+      },
+      "weight": {
+        "name": "Вес"
+      },
+      "spo2": {
+        "name": "Кислород в крови (SpO2)"
+      },
+      "stress": {
+        "name": "Стресс"
+      },
+      "stand_hours_today": {
+        "name": "Часы с вставаниями за сегодня"
+      },
+      "vitality_high": {
+        "name": "Активность высокой интенсивности"
+      },
+      "vitality_medium": {
+        "name": "Активность средней интенсивности"
+      },
+      "vitality_low": {
+        "name": "Активность низкой интенсивности"
+      },
+      "sleep_quality": {
+        "name": "Качество сна"
+      },
+      "sleep_chronotype": {
+        "name": "Хронотип сна"
+      },
+      "sleep_efficiency": {
+        "name": "Эффективность сна"
+      },
+      "sleep_awake_count": {
+        "name": "Пробуждения за ночь"
+      },
+      "sleep_max_hr": {
+        "name": "Максимальный пульс во сне"
+      },
+      "sleep_min_hr": {
+        "name": "Минимальный пульс во сне"
+      },
+      "sleep_bedtime": {
+        "name": "Отход ко сну"
+      },
+      "sleep_wakeup": {
+        "name": "Пробуждение"
+      }
+    }
+  }
+}

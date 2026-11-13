@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_USER_ID,
@@ -37,12 +38,14 @@ class MiFitnessSensorDescription(SensorEntityDescription):
     """Descriptor for a Mi Fitness sensor."""
     data_key: str = ""
     icon: str = "mdi:heart-pulse"
+    # (timestamp key, max age in seconds): older readings are shown as unknown
+    stale_after: tuple[str, int] | None = None
 
 
 SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     MiFitnessSensorDescription(
         key="steps_today",
-        name="Steps Today",
+        translation_key="steps_today",
         data_key="steps_today",
         native_unit_of_measurement="steps",
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -50,7 +53,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="distance_today",
-        name="Distance Today",
+        translation_key="distance_today",
         data_key="distance_today",
         native_unit_of_measurement=UnitOfLength.METERS,
         device_class=SensorDeviceClass.DISTANCE,
@@ -59,7 +62,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="calories_today",
-        name="Calories Today",
+        translation_key="calories_today",
         data_key="calories_today",
         native_unit_of_measurement="kcal",
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -67,7 +70,8 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="heart_rate",
-        name="Heart Rate",
+        translation_key="heart_rate",
+        stale_after=("heart_rate_ts", 2 * 3600),
         data_key="heart_rate",
         native_unit_of_measurement="bpm",
         state_class=SensorStateClass.MEASUREMENT,
@@ -76,7 +80,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="resting_heart_rate",
-        name="Resting Heart Rate",
+        translation_key="resting_heart_rate",
         data_key="resting_heart_rate",
         native_unit_of_measurement="bpm",
         state_class=SensorStateClass.MEASUREMENT,
@@ -85,7 +89,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="heart_rate_avg_today",
-        name="Average Heart Rate Today",
+        translation_key="heart_rate_avg_today",
         data_key="heart_rate_avg_today",
         native_unit_of_measurement="bpm",
         state_class=SensorStateClass.MEASUREMENT,
@@ -94,7 +98,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="sleep_duration",
-        name="Sleep Duration",
+        translation_key="sleep_duration",
         data_key="sleep_duration",
         native_unit_of_measurement=UnitOfTime.MINUTES,
         device_class=SensorDeviceClass.DURATION,
@@ -103,7 +107,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="sleep_deep",
-        name="Deep Sleep Duration",
+        translation_key="sleep_deep",
         data_key="sleep_deep",
         native_unit_of_measurement=UnitOfTime.MINUTES,
         device_class=SensorDeviceClass.DURATION,
@@ -112,7 +116,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="sleep_light",
-        name="Light Sleep Duration",
+        translation_key="sleep_light",
         data_key="sleep_light",
         native_unit_of_measurement=UnitOfTime.MINUTES,
         device_class=SensorDeviceClass.DURATION,
@@ -121,7 +125,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="sleep_rem",
-        name="REM Sleep Duration",
+        translation_key="sleep_rem",
         data_key="sleep_rem",
         native_unit_of_measurement=UnitOfTime.MINUTES,
         device_class=SensorDeviceClass.DURATION,
@@ -130,7 +134,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="sleep_avg_hr",
-        name="Sleep Average Heart Rate",
+        translation_key="sleep_avg_hr",
         data_key="sleep_avg_hr",
         native_unit_of_measurement="bpm",
         state_class=SensorStateClass.MEASUREMENT,
@@ -139,7 +143,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="weight",
-        name="Weight",
+        translation_key="weight",
         data_key="weight",
         native_unit_of_measurement=UnitOfMass.KILOGRAMS,
         device_class=SensorDeviceClass.WEIGHT,
@@ -148,7 +152,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="spo2",
-        name="Blood Oxygen (SpO2)",
+        translation_key="spo2",
         data_key="spo2",
         native_unit_of_measurement="%",
         state_class=SensorStateClass.MEASUREMENT,
@@ -156,14 +160,15 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="stress",
-        name="Stress",
+        translation_key="stress",
+        stale_after=("stress_ts", 3 * 3600),
         data_key="stress",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:head-heart-outline",
     ),
     MiFitnessSensorDescription(
         key="stand_hours_today",
-        name="Stand Hours Today",
+        translation_key="stand_hours_today",
         data_key="stand_hours_today",
         native_unit_of_measurement="h",
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -171,7 +176,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="vitality_high",
-        name="High Intensity Vitality",
+        translation_key="vitality_high",
         data_key="vitality_high",
         native_unit_of_measurement="min",
         state_class=SensorStateClass.MEASUREMENT,
@@ -179,7 +184,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="vitality_medium",
-        name="Medium Intensity Vitality",
+        translation_key="vitality_medium",
         data_key="vitality_medium",
         native_unit_of_measurement="min",
         state_class=SensorStateClass.MEASUREMENT,
@@ -187,7 +192,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="vitality_low",
-        name="Low Intensity Vitality",
+        translation_key="vitality_low",
         data_key="vitality_low",
         native_unit_of_measurement="min",
         state_class=SensorStateClass.MEASUREMENT,
@@ -195,7 +200,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="sleep_quality",
-        name="Sleep Quality",
+        translation_key="sleep_quality",
         data_key="sleep_quality",
         native_unit_of_measurement="%",
         state_class=SensorStateClass.MEASUREMENT,
@@ -203,13 +208,13 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="sleep_chronotype",
-        name="Sleep Chronotype",
+        translation_key="sleep_chronotype",
         data_key="sleep_chronotype",
         icon="mdi:paw",
     ),
     MiFitnessSensorDescription(
         key="sleep_efficiency",
-        name="Sleep Efficiency",
+        translation_key="sleep_efficiency",
         data_key="sleep_efficiency",
         native_unit_of_measurement="%",
         state_class=SensorStateClass.MEASUREMENT,
@@ -217,7 +222,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="sleep_awake_count",
-        name="Sleep Awake Count",
+        translation_key="sleep_awake_count",
         data_key="sleep_awake_count",
         native_unit_of_measurement="times",
         state_class=SensorStateClass.MEASUREMENT,
@@ -225,7 +230,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="sleep_max_hr",
-        name="Sleep Max Heart Rate",
+        translation_key="sleep_max_hr",
         data_key="sleep_max_hr",
         native_unit_of_measurement="bpm",
         state_class=SensorStateClass.MEASUREMENT,
@@ -233,7 +238,7 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="sleep_min_hr",
-        name="Sleep Min Heart Rate",
+        translation_key="sleep_min_hr",
         data_key="sleep_min_hr",
         native_unit_of_measurement="bpm",
         state_class=SensorStateClass.MEASUREMENT,
@@ -241,14 +246,14 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     ),
     MiFitnessSensorDescription(
         key="sleep_bedtime",
-        name="Bedtime",
+        translation_key="sleep_bedtime",
         data_key="sleep_bedtime",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:bed-clock",
     ),
     MiFitnessSensorDescription(
         key="sleep_wakeup",
-        name="Wake Up Time",
+        translation_key="sleep_wakeup",
         data_key="sleep_wakeup",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:alarm",
@@ -262,7 +267,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Mi Fitness sensors from a config entry."""
-    coordinator: MiFitnessCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: MiFitnessCoordinator = entry.runtime_data
     user_id = entry.data[CONF_USER_ID]
 
     async_add_entities(
@@ -276,6 +281,11 @@ class MiFitnessSensor(CoordinatorEntity[MiFitnessCoordinator], SensorEntity):
 
     entity_description: MiFitnessSensorDescription
     _attr_has_entity_name = True
+    # Large, frequently changing attributes: keep them out of the recorder DB
+    # (HA refuses to store attribute sets > 16 KB and logs a warning).
+    _unrecorded_attributes = frozenset(
+        {"stages", "history_14d", "sessions_30d", "hourly"}
+    )
 
     def __init__(
         self,
@@ -301,10 +311,16 @@ class MiFitnessSensor(CoordinatorEntity[MiFitnessCoordinator], SensorEntity):
         if self.coordinator.data is None:
             return None
         val = self.coordinator.data.get(self.entity_description.data_key)
+        # A "current" reading from hours ago is not current: report unknown
+        if (stale := self.entity_description.stale_after) and val is not None:
+            ts_key, max_age = stale
+            ts = self.coordinator.data.get(ts_key) or 0
+            if dt_util.utcnow().timestamp() - ts > max_age:
+                return None
         # TIMESTAMP device_class requires aware datetime
         if self.entity_description.device_class == SensorDeviceClass.TIMESTAMP and val is not None:
             if isinstance(val, (int, float)):
-                return datetime.fromtimestamp(val, tz=timezone.utc)
+                return dt_util.utc_from_timestamp(val)
         return val
 
     @property
@@ -317,7 +333,7 @@ class MiFitnessSensor(CoordinatorEntity[MiFitnessCoordinator], SensorEntity):
         if key == "heart_rate":
             ts = data.get("heart_rate_ts")
             if ts:
-                attrs["last_measured"] = datetime.fromtimestamp(ts).isoformat()
+                attrs["last_measured"] = dt_util.as_local(dt_util.utc_from_timestamp(ts)).isoformat()
             attrs["heart_rate_max_today"] = data.get("heart_rate_max_today")
             attrs["heart_rate_min_today"] = data.get("heart_rate_min_today")
 
@@ -325,9 +341,9 @@ class MiFitnessSensor(CoordinatorEntity[MiFitnessCoordinator], SensorEntity):
             bedtime = data.get("sleep_bedtime")
             wakeup  = data.get("sleep_wakeup")
             if bedtime:
-                attrs["bedtime"] = datetime.fromtimestamp(bedtime).isoformat()
+                attrs["bedtime"] = dt_util.as_local(dt_util.utc_from_timestamp(bedtime)).isoformat()
             if wakeup:
-                attrs["wake_up_time"] = datetime.fromtimestamp(wakeup).isoformat()
+                attrs["wake_up_time"] = dt_util.as_local(dt_util.utc_from_timestamp(wakeup)).isoformat()
             attrs["awake_count"]   = data.get("sleep_awake_count")
             attrs["quality"]       = data.get("sleep_quality")
             attrs["efficiency"]    = data.get("sleep_efficiency")
@@ -338,6 +354,9 @@ class MiFitnessSensor(CoordinatorEntity[MiFitnessCoordinator], SensorEntity):
             history = data.get("sleep_history_14d")
             if history:
                 attrs["history_14d"] = history
+            sessions = data.get("sleep_sessions_30d")
+            if sessions:
+                attrs["sessions_30d"] = sessions
 
         elif key == "sleep_chronotype":
             _ANIMAL_EMOJI = {
@@ -354,9 +373,9 @@ class MiFitnessSensor(CoordinatorEntity[MiFitnessCoordinator], SensorEntity):
             bedtime = data.get("sleep_bedtime")
             wakeup  = data.get("sleep_wakeup")
             if bedtime:
-                attrs["bedtime"] = datetime.fromtimestamp(bedtime).isoformat()
+                attrs["bedtime"] = dt_util.as_local(dt_util.utc_from_timestamp(bedtime)).isoformat()
             if wakeup:
-                attrs["wake_up_time"] = datetime.fromtimestamp(wakeup).isoformat()
+                attrs["wake_up_time"] = dt_util.as_local(dt_util.utc_from_timestamp(wakeup)).isoformat()
 
         elif key == "steps_today":
             attrs["distance_m"]    = data.get("distance_today")
@@ -376,11 +395,11 @@ class MiFitnessSensor(CoordinatorEntity[MiFitnessCoordinator], SensorEntity):
         elif key == "stress":
             ts = data.get("stress_ts")
             if ts:
-                attrs["last_measured"] = datetime.fromtimestamp(ts).isoformat()
+                attrs["last_measured"] = dt_util.as_local(dt_util.utc_from_timestamp(ts)).isoformat()
 
         elif key == "weight":
             ts = data.get("weight_ts")
             if ts:
-                attrs["last_measured"] = datetime.fromtimestamp(ts).isoformat()
+                attrs["last_measured"] = dt_util.as_local(dt_util.utc_from_timestamp(ts)).isoformat()
 
         return {k: v for k, v in attrs.items() if v is not None}

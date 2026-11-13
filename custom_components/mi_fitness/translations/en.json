@@ -2,80 +2,180 @@
   "config": {
     "step": {
       "user": {
-        "title": "Mi Fitness \u2014 Setup",
+        "title": "Mi Fitness — Setup",
         "data": {
           "auth_method": "Authentication method",
-          "region": "Server region"
+          "region": "Server region (“auto” tries all of them)"
         }
       },
       "password": {
-        "title": "Mi Fitness \u2014 Xiaomi Login",
-        "description": "Enter your Xiaomi account credentials. If 2FA is enabled, a verification code will be sent to your email.",
+        "title": "Mi Fitness — Xiaomi Login",
+        "description": "Enter your Xiaomi account credentials. If 2FA is enabled, a verification code will be sent to you by SMS or email.\n\nThe password is not stored unless you tick “Remember password”: a long-lived session token is used instead. Without it, an expired token means entering the password again.",
         "data": {
           "username": "Xiaomi account email or phone",
-          "password": "Password"
+          "password": "Password",
+          "save_password": "Remember password (only needed if the session token expires)"
         }
       },
       "captcha": {
-        "title": "Mi Fitness \u2014 Captcha Required",
+        "title": "Mi Fitness — Captcha Required",
         "description": "Enter the text shown in the image:\n\n![Captcha]({captcha_url})",
         "data": {
           "captcha_code": "Captcha text"
         }
       },
       "approval": {
-        "title": "Mi Fitness \u2014 Email Verification",
-        "description": "Xiaomi sent a verification code to your email.\n\nEnter the code below \u2014 the integration will submit it automatically.",
+        "title": "Mi Fitness — Verification Code",
+        "description": "Xiaomi sent a verification code by SMS or email.\n\nEnter the code below — the integration will submit it automatically.",
         "data": {
-          "email_code": "Code from email"
+          "email_code": "Verification code"
         }
       },
       "tokens": {
-        "title": "Mi Fitness \u2014 Manual Token Entry",
-        "description": "Advanced: enter account credentials obtained from your own Mi Fitness session.\n\n\u2022 ssecurity, userId, cUserId \u2014 from the serviceLoginAuth2 response\n\u2022 passToken \u2014 from the serviceLoginAuth2 Set-Cookie header\n\u2022 serviceToken \u2014 from the STS Set-Cookie header\n\npassToken lets the integration auto-refresh tokens without 2FA. Highly recommended for 2FA accounts.\n\nRegion: {region}",
+        "title": "Mi Fitness — Manual Token Entry",
+        "description": "Advanced: enter account credentials obtained from your own Mi Fitness session.\n\n• ssecurity, userId, cUserId — from the serviceLoginAuth2 response\n• passToken — from the serviceLoginAuth2 Set-Cookie header\n• serviceToken — from the STS Set-Cookie header\n\npassToken lets the integration refresh tokens without 2FA. Highly recommended.",
         "data": {
           "user_id": "userId",
           "c_user_id": "cUserId",
           "ssecurity": "ssecurity",
           "service_token": "serviceToken",
-          "pass_token": "passToken (recommended)",
-          "phone_id": "Phone ID (optional)"
+          "pass_token": "passToken (recommended)"
         }
       },
       "reauth_confirm": {
-        "title": "Mi Fitness \u2014 Credentials Changed",
-        "description": "Automatic re-login failed. Your password may have changed \u2014 enter updated credentials.",
+        "title": "Mi Fitness — Sign in again",
+        "description": "The session could not be renewed automatically. Sign in again (or enter new tokens).",
         "data": {
           "username": "Xiaomi account email or phone",
-          "password": "Password"
+          "password": "Password",
+          "save_password": "Remember password (only needed if the session token expires)",
+          "ssecurity": "ssecurity",
+          "service_token": "serviceToken",
+          "pass_token": "passToken (recommended)"
         }
       },
       "reauth_captcha": {
-        "title": "Mi Fitness \u2014 Captcha",
+        "title": "Mi Fitness — Captcha Required",
         "description": "Enter the text shown in the image:\n\n![Captcha]({captcha_url})",
         "data": {
           "captcha_code": "Captcha text"
         }
       },
       "reauth_approval": {
-        "title": "Mi Fitness \u2014 Email Verification",
-        "description": "Xiaomi sent a verification code to your email.\n\nEnter the code below \u2014 the integration will submit it automatically.",
+        "title": "Mi Fitness — Verification Code",
+        "description": "Xiaomi sent a verification code by SMS or email.\n\nEnter the code below — the integration will submit it automatically.",
         "data": {
-          "email_code": "Code from email"
+          "email_code": "Verification code"
+        }
+      },
+      "reconfigure": {
+        "title": "Mi Fitness — Settings",
+        "description": "The region is checked against the data API before saving.",
+        "data": {
+          "region": "Server region (“auto” tries all of them)",
+          "forget_password": "Forget the stored password"
         }
       }
     },
     "error": {
       "invalid_auth": "Invalid credentials or expired tokens.",
-      "cannot_connect": "Cannot connect to Mi Fitness API. Check region and internet.",
+      "cannot_connect": "Cannot connect to the Mi Fitness API. Check your internet connection.",
+      "no_data_region": "No region accepted these credentials.",
       "login_failed": "Login failed. Check your credentials and try again.",
       "captcha_invalid": "Wrong captcha. Try again.",
-      "unknown": "Unexpected error \u2014 check Home Assistant logs.",
-      "approval_not_detected": "Wrong or expired code. Check your email and try again."
+      "unknown": "Unexpected error — check Home Assistant logs.",
+      "approval_not_detected": "Wrong or expired code. Try again.",
+      "otp_send_failed": "Xiaomi did not accept the request to send a verification code. Try again later."
     },
     "abort": {
       "already_configured": "This Mi Fitness account is already configured.",
-      "reauth_successful": "Re-authentication successful."
+      "reauth_successful": "Re-authentication successful.",
+      "reconfigure_successful": "Settings updated.",
+      "wrong_account": "You signed in with a different Xiaomi account than the one configured.",
+      "cannot_connect": "Signed in, but the Mi Fitness data API could not be reached. Try again later.",
+      "no_data_region": "Signed in, but no Mi Fitness region accepted the session. Make sure the account has Mi Fitness data."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "steps_today": {
+        "name": "Steps Today"
+      },
+      "distance_today": {
+        "name": "Distance Today"
+      },
+      "calories_today": {
+        "name": "Calories Today"
+      },
+      "heart_rate": {
+        "name": "Heart Rate"
+      },
+      "resting_heart_rate": {
+        "name": "Resting Heart Rate"
+      },
+      "heart_rate_avg_today": {
+        "name": "Average Heart Rate Today"
+      },
+      "sleep_duration": {
+        "name": "Sleep Duration"
+      },
+      "sleep_deep": {
+        "name": "Deep Sleep Duration"
+      },
+      "sleep_light": {
+        "name": "Light Sleep Duration"
+      },
+      "sleep_rem": {
+        "name": "REM Sleep Duration"
+      },
+      "sleep_avg_hr": {
+        "name": "Sleep Average Heart Rate"
+      },
+      "weight": {
+        "name": "Weight"
+      },
+      "spo2": {
+        "name": "Blood Oxygen (SpO2)"
+      },
+      "stress": {
+        "name": "Stress"
+      },
+      "stand_hours_today": {
+        "name": "Stand Hours Today"
+      },
+      "vitality_high": {
+        "name": "High Intensity Vitality"
+      },
+      "vitality_medium": {
+        "name": "Medium Intensity Vitality"
+      },
+      "vitality_low": {
+        "name": "Low Intensity Vitality"
+      },
+      "sleep_quality": {
+        "name": "Sleep Quality"
+      },
+      "sleep_chronotype": {
+        "name": "Sleep Chronotype"
+      },
+      "sleep_efficiency": {
+        "name": "Sleep Efficiency"
+      },
+      "sleep_awake_count": {
+        "name": "Sleep Awake Count"
+      },
+      "sleep_max_hr": {
+        "name": "Sleep Max Heart Rate"
+      },
+      "sleep_min_hr": {
+        "name": "Sleep Min Heart Rate"
+      },
+      "sleep_bedtime": {
+        "name": "Bedtime"
+      },
+      "sleep_wakeup": {
+        "name": "Wake Up Time"
+      }
     }
   }
 }

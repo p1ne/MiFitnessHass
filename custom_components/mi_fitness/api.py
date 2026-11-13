@@ -13,6 +13,7 @@ import json
 import logging
 import random
 import time
+from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
 import requests
@@ -25,10 +26,17 @@ def _rand_hex(n: int = 32) -> str:
     return "".join(random.choices("0123456789abcdef", k=n))
 
 
-# Per-install device fingerprint baked into the UA. Xiaomi only uses these two
-# hashes to identify the client instance, so a random value generated once at
-# import is fine — never hardcode a real device id here.
-USER_AGENT = f"Android-14-3.55.0i-samsung-SM-F721B-{_rand_hex()}-{_rand_hex()}"
+def new_api_device_suffix() -> str:
+    """Random client fingerprint for the User-Agent (two 32-hex hashes).
+
+    Generated ONCE per config entry and stored in it: a new value on every
+    restart makes Xiaomi see a new client each time.
+    """
+    return f"{_rand_hex()}-{_rand_hex()}"
+
+
+def _user_agent(suffix: str) -> str:
+    return f"Android-14-3.55.0i-samsung-SM-F721B-{suffix or new_api_device_suffix()}"
 
 
 class MiFitnessApiError(Exception):
@@ -37,6 +45,25 @@ class MiFitnessApiError(Exception):
 
 class MiFitnessAuthError(MiFitnessApiError):
     """Authentication / token expired error."""
+
+
+class MiFitnessProtocolError(MiFitnessApiError):
+    """Server answered, but the answer could not be decrypted or was an API error.
+
+    A persistently undecryptable answer usually means the stored ssecurity no
+    longer matches the session; unlike network errors this needs re-auth.
+    """
+
+
+@dataclass
+class FetchResult:
+    """Outcome of one paginated fetch."""
+
+    items: list[dict] = field(default_factory=list)
+    watermark: int = 0
+    errored: bool = False          # a page failed after retries
+    protocol_error: bool = False   # ...and the failure was a protocol error
+    has_more: bool = False         # stopped at max_pages with data still pending
 
 
 # ── Crypto ──────────────────────────────────────────────────────────────────
@@ -112,7 +139,7 @@ def _build_get_params(url: str, data_obj: dict, ssecurity: str) -> tuple[dict, s
 # ── Client ───────────────────────────────────────────────────────────────────
 
 class MiFitnessClient:
-    """Async-capable Xiaomi health data client for hlth.io.mi.com."""
+    """Xiaomi health data client for hlth.io.mi.com (blocking; run in executor)."""
 
     def __init__(
         self,
@@ -121,17 +148,21 @@ class MiFitnessClient:
         ssecurity: str,
         service_token: str,
         region: str = "us",
-        phone_id: str = "",
+        device_suffix: str = "",
     ) -> None:
         self.user_id       = user_id
         self.c_user_id     = c_user_id
         self.ssecurity     = ssecurity
         self.service_token = service_token
         self.region        = region
-        self.phone_id      = phone_id
+        self._user_agent   = _user_agent(device_suffix)
 
         self._base = f"https://{region}.hlth.io.mi.com"
         self._session = self._make_session()
+
+    def close(self) -> None:
+        """Close the underlying HTTP session."""
+        self._session.close()
 
     def update_service_token(self, new_token: str) -> None:
         """Hot-swap serviceToken without rebuilding the full client."""
@@ -142,7 +173,7 @@ class MiFitnessClient:
     def _make_session(self) -> requests.Session:
         s = requests.Session()
         s.headers.update({
-            "User-Agent":   USER_AGENT,
+            "User-Agent":   self._user_agent,
             "HandleParams": "true",
             "region_tag":   self.region,
         })
@@ -151,12 +182,7 @@ class MiFitnessClient:
         s.cookies.set("cUserId",      self.c_user_id,     domain=domain)
         s.cookies.set("serviceToken", self.service_token, domain=domain)
         s.cookies.set("locale",       "de_de",            domain=domain)
-        _LOGGER.warning(
-            "API session: region=%s user_id=%s c_user_id=%s "
-            "ssec_len=%d tok_len=%d",
-            self.region, self.user_id, self.c_user_id,
-            len(self.ssecurity), len(self.service_token),
-        )
+        _LOGGER.debug("API session: region=%s", self.region)
         return s
 
     def _get(self, path: str, data_obj: dict) -> dict:
@@ -166,19 +192,22 @@ class MiFitnessClient:
         try:
             r = self._session.get(url, params=params, timeout=20)
         except requests.RequestException as exc:
-            raise MiFitnessApiError(f"Network error: {exc}") from exc
+            raise MiFitnessApiError(f"Network error: {type(exc).__name__}") from exc
 
+        # Never log r.url: the signed query string contains ssecurity.
         if r.status_code == 401:
-            _LOGGER.error("HTTP 401 body=%s  url=%s", r.text[:300], r.url)
+            _LOGGER.debug("HTTP 401 from %s", path)
             raise MiFitnessAuthError("serviceToken expired (HTTP 401)")
         if r.status_code != 200:
-            raise MiFitnessApiError(f"HTTP {r.status_code}: {r.text[:200]}")
+            raise MiFitnessApiError(f"HTTP {r.status_code} from {path}")
 
         try:
             plaintext = _decrypt_rc4(snonce, r.text.strip())
             return json.loads(plaintext)
         except Exception as exc:
-            raise MiFitnessApiError(f"Decrypt/parse failed: {exc} raw={r.text[:100]}") from exc
+            raise MiFitnessProtocolError(
+                f"Could not decrypt/parse response from {path}: {type(exc).__name__}"
+            ) from exc
 
     # ── Public methods ───────────────────────────────────────────────────────
 
@@ -193,66 +222,43 @@ class MiFitnessClient:
         )
         code = result.get("code", -1)
         if code != 0:
-            raise MiFitnessApiError(f"API error code {code}: {result}")
-        return result.get("result", {})
+            raise MiFitnessProtocolError(
+                f"API error code {code}: {result.get('message') or result.get('desc') or ''}"
+            )
+        return result.get("result") or {}
 
-    def get_daily_markers(self, watermark: int = 0) -> list[dict]:
-        """
-        Fetch daily_mark presence indicators (which days have data for each metric).
-        Returns list of marker items.
-        """
-        result = self._get(
-            "/app/v1/data/get_aggregated_fitness_data_by_watermark",
-            {
-                "userid":   self.user_id,
-                "tag":      "daily_mark",
-                "phone_id": self.phone_id,
-                "limit":    50,
-                "watermark": watermark,
-            },
-        )
-        code = result.get("code", -1)
-        if code != 0:
-            _LOGGER.warning("daily_mark error code %s", code)
-            return []
-        r = result.get("result") or {}
-        return r.get("data_list", [])
+    def fetch_all_since(self, watermark: int, max_pages: int = 10) -> FetchResult:
+        """Paginate through get_fitness_data_by_watermark.
 
-    def fetch_all_since(
-        self, watermark: int, max_pages: int = 10
-    ) -> tuple[list[dict], int, bool]:
+        ``errored`` is True if a page failed after retries — the caller must NOT
+        treat the (possibly empty) result as "fully caught up". ``has_more`` is
+        True when max_pages was reached while the server still had data.
         """
-        Paginate through get_fitness_data_by_watermark.
-        Returns (all_items, new_watermark, errored).
-
-        `errored` is True if a page failed after retries — the caller must NOT
-        treat the (possibly empty) result as "fully caught up", otherwise a
-        transient network blip silently stalls polling until a reload.
-        """
-        items: list[dict] = []
-        wm = watermark
-        errored = False
+        res = FetchResult(watermark=watermark)
         for _ in range(max_pages):
             page = None
+            last_exc: Exception | None = None
             for attempt in range(3):
                 try:
-                    page = self.get_health_data(watermark=wm)
+                    page = self.get_health_data(watermark=res.watermark)
                     break
                 except MiFitnessAuthError:
                     raise   # let coordinator handle 401 → silent refresh
                 except MiFitnessApiError as exc:
+                    last_exc = exc
                     _LOGGER.warning(
                         "fetch_all_since page error (attempt %d/3): %s", attempt + 1, exc
                     )
                     time.sleep(1.5 * (attempt + 1))
             if page is None:
-                errored = True
+                res.errored = True
+                res.protocol_error = isinstance(last_exc, MiFitnessProtocolError)
                 break
             dl = page.get("data_list") or []
-            new_wm = page.get("watermark", wm)
-            items.extend(dl)
-            wm = new_wm
-            if not page.get("has_more") or not dl:
+            res.items.extend(dl)
+            res.watermark = page.get("watermark", res.watermark)
+            res.has_more = bool(page.get("has_more")) and bool(dl)
+            if not res.has_more:
                 break
             time.sleep(0.3)   # be gentle: avoid hammering / rate-limit during catch-up
-        return items, wm, errored
+        return res

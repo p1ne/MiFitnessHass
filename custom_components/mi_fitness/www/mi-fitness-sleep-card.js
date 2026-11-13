@@ -55,11 +55,34 @@ class MiFitnessSleepCard extends HTMLElement {
 
   _fmtTime(d) {
     if (!d) return "—";
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: this._dispTz() });
   }
 
+  // Dates in the sensor data are calendar days in the Home Assistant server
+  // time zone, so "today" and day keys must be computed there too — not in the
+  // browser's zone (a phone abroad would otherwise miss today's data).
+  _srvTz() { return this._hass?.config?.time_zone || undefined; }
+  // Clock times follow the user's profile setting (local browser vs server).
+  _dispTz() { return this._hass?.locale?.time_zone === "server" ? this._srvTz() : undefined; }
+
   _dateStr(d) {
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: this._srvTz(), year: "numeric", month: "2-digit", day: "2-digit",
+      }).format(d);
+    } catch (e) {
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    }
+  }
+
+  // Day of week (0 = Monday) in the server time zone
+  _dow(d) {
+    try {
+      const wd = new Intl.DateTimeFormat("en-US", { timeZone: this._srvTz(), weekday: "short" }).format(d);
+      return ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].indexOf(wd);
+    } catch (e) {
+      return (d.getDay() + 6) % 7;
+    }
   }
 
   static get ANIMALS() {
@@ -267,8 +290,8 @@ class MiFitnessSleepCard extends HTMLElement {
         .map(s => {
           const l = ((s.start - bedTs) / total * 100).toFixed(2);
           const w = ((s.end - s.start) / total * 100).toFixed(2);
-          const t1 = new Date(s.start*1000).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-          const t2 = new Date(s.end*1000).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+          const t1 = new Date(s.start*1000).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",timeZone:this._dispTz()});
+          const t2 = new Date(s.end*1000).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",timeZone:this._dispTz()});
           return `<div class="bar" style="left:${l}%;width:${w}%;background:${color}" title="${label}: ${t1} – ${t2}"></div>`;
         }).join("");
       return `<div class="tl-row">
@@ -281,7 +304,7 @@ class MiFitnessSleepCard extends HTMLElement {
     const ticks = [];
     while (tickMs <= wakeDate.getTime()) {
       const pct   = ((tickMs / 1000 - bedTs) / total * 100).toFixed(2);
-      const label = new Date(tickMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const label = new Date(tickMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: this._dispTz() });
       ticks.push(`<span class="tick" style="left:${pct}%">${label}</span>`);
       tickMs += 3600000;
     }
