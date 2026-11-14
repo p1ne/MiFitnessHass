@@ -38,8 +38,6 @@ class MiFitnessSensorDescription(SensorEntityDescription):
     """Descriptor for a Mi Fitness sensor."""
     data_key: str = ""
     icon: str = "mdi:heart-pulse"
-    # (timestamp key, max age in seconds): older readings are shown as unknown
-    stale_after: tuple[str, int] | None = None
 
 
 SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
@@ -71,7 +69,6 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     MiFitnessSensorDescription(
         key="heart_rate",
         translation_key="heart_rate",
-        stale_after=("heart_rate_ts", 2 * 3600),
         data_key="heart_rate",
         native_unit_of_measurement="bpm",
         state_class=SensorStateClass.MEASUREMENT,
@@ -161,7 +158,6 @@ SENSOR_TYPES: tuple[MiFitnessSensorDescription, ...] = (
     MiFitnessSensorDescription(
         key="stress",
         translation_key="stress",
-        stale_after=("stress_ts", 3 * 3600),
         data_key="stress",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:head-heart-outline",
@@ -311,12 +307,6 @@ class MiFitnessSensor(CoordinatorEntity[MiFitnessCoordinator], SensorEntity):
         if self.coordinator.data is None:
             return None
         val = self.coordinator.data.get(self.entity_description.data_key)
-        # A "current" reading from hours ago is not current: report unknown
-        if (stale := self.entity_description.stale_after) and val is not None:
-            ts_key, max_age = stale
-            ts = self.coordinator.data.get(ts_key) or 0
-            if dt_util.utcnow().timestamp() - ts > max_age:
-                return None
         # TIMESTAMP device_class requires aware datetime
         if self.entity_description.device_class == SensorDeviceClass.TIMESTAMP and val is not None:
             if isinstance(val, (int, float)):

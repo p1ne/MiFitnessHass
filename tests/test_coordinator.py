@@ -89,18 +89,19 @@ async def test_network_errors_do_not_trigger_reauth(hass):
     sr.assert_not_awaited()
 
 
-async def test_stale_heart_rate_is_unknown_and_diagnostics_redacted(hass):
+async def test_old_readings_keep_value_and_diagnostics_redacted(hass):
     now = int(time.time())
     stored = {"watermark": 10, "day_wm": 10, "day_num": dt_util.now().toordinal()}
-    entry, c = await make(hass, [FetchResult(items=[it("heart_rate", now - 3 * 3600, bpm=70),
+    entry, c = await make(hass, [FetchResult(items=[it("heart_rate", now - 10 * 3600, bpm=70),
                                                     it("stress", now - 3600, stress=0)],
                                              watermark=20)], stored)
     await c.async_refresh()
     desc = {d.key: d for d in SENSOR_TYPES}
     hr = MiFitnessSensor(c, desc["heart_rate"], "123", entry.entry_id)
     st = MiFitnessSensor(c, desc["stress"], "123", entry.entry_id)
-    assert c.data["heart_rate"] == 70 and hr.native_value is None      # 3 h old → unknown
-    assert st.native_value == 0                                       # 1 h old, 0 is valid
+    assert hr.native_value == 70                      # old reading still shown
+    assert "last_measured" in hr.extra_state_attributes
+    assert st.native_value == 0                       # 0 is a valid stress value
     entry.runtime_data = c
     diag = await async_get_config_entry_diagnostics(hass, entry)
     dump = json.dumps(diag, default=str)

@@ -1,3 +1,10 @@
+# 1.3.1
+
+- Heart Rate and Stress always show the last reading again. The 1.3.0 rule that turned them
+  "unknown" after 2 h / 3 h made them unknown most of the time, because data reaches Xiaomi's
+  cloud only when the phone app syncs (often hours later). The time of the reading is in the
+  `last_measured` attribute.
+
 # 1.3.0
 
 ## Login and setup
@@ -23,8 +30,8 @@
   restarting at 0 (no negative spike).
 
 ## Sensors and UI
-- "Heart Rate" shows unknown when the last reading is older than 2 h, "Stress" after 3 h
-  (`last_measured` attribute still shows the old value's time).
+- "Heart Rate" showed unknown when the last reading was older than 2 h, "Stress" after 3 h
+  (reverted in 1.3.1).
 - Sensor names via `translation_key`; Russian translation for setup and sensor names.
   entity_ids stay English (HA generates them in English for Russian), so the cards keep working.
 - Diagnostics (`diagnostics.py`) with tokens, IDs and the account name redacted.
